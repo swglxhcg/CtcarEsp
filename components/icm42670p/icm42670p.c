@@ -40,6 +40,7 @@ struct inv_imu_serif icm_serif;
 static struct inv_imu_device icm_driver;
 
 
+#include <unistd.h>
 extern int usleep(useconds_t us);
 
 // IMU读取数据接口
