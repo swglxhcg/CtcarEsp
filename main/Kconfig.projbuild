@@ -1,0 +1,16 @@
+menu "Chzt Custom Settings"
+
+    config ChZT_APP_STACK
+        int "Stack the micro-ROS app (Bytes)"
+        default 16000
+        help
+        Stack size in Bytes of the Chzt Custom app
+
+    config ChZT_APP_TASK_PRIO
+        int "Priority of the Chzt Custom task"
+        default 5
+        help
+        Priority of Chzt Custom task higher value means higher priority
+
+        
+endmenu
