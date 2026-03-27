@@ -1,3 +1,5 @@
 {
-    "idf.currentSetup": "D:/Espressif551/frameworks/esp-idf-v5.5.1/"
+    "idf.currentSetup": "D:/Espressif551/frameworks/esp-idf-v5.5.1/",
+    "idf.port": "/dev/ttyUSB0",
+    "idf.flashType": "UART"
 }

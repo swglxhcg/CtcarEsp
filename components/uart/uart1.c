@@ -61,7 +61,7 @@ void Uart1_Init(void)
     
     RingBuffer_Init(&uart1_ringbuf, RX1_BUF_SIZE);
 
-    xTaskCreate(Uart1_Rx_Task, "Uart1_Rx_Task", 5*1024, NULL, configMAX_PRIORITIES, NULL);
+    xTaskCreate(Uart1_Rx_Task, "Uart1_Rx_Task", 5*1024, NULL, configMAX_PRIORITIES - 1, NULL);
 }
 
 // 通过串口1发送一串数据 Send a string of data through serial port 1

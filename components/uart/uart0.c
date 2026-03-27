@@ -48,7 +48,7 @@ static void Uart0_Rx_Task(void *arg)
 void Uart0_Init(void)
 {
     const uart_config_t uart_config = {
-        .baud_rate = 115200,
+        .baud_rate = 921600,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -61,7 +61,7 @@ void Uart0_Init(void)
 
     RingBuffer_Init(&uart0_ringbuf, RX0_BUF_SIZE);
 
-    xTaskCreate(Uart0_Rx_Task, "Uart0_Rx_Task", 5*1024, NULL, configMAX_PRIORITIES, NULL);
+    xTaskCreate(Uart0_Rx_Task, "Uart0_Rx_Task", 5*1024, NULL, configMAX_PRIORITIES - 1, NULL);
 }
 
 // 通过串口0发送一串数据 Send a string of data through serial port 0
