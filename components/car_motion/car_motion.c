@@ -35,46 +35,36 @@ int constrain(int value, int min_value, int max_value)
     }
 }
 
-// 麦轮解算函数
-void mecanum_kinematics(float vx, float vy, float wz, float L) {
-    // 输入：
-    //   vx：机体坐标系下的X方向线速度（m/s，向前为正）
-    //   vy：机体坐标系下的Y方向线速度（m/s，向左为正）
-    //   wz：机体坐标系下的角速度（rad/s，逆时针为正）
-    //   L：轮子中心到机器人旋转中心的距离（m，轮距参数，需根据机械结构测量）
-    // 输出：
-    //   speed_L1_setup：前左轮的线速度（m/s）
-    //   speed_L2_setup：后左轮的线速度（m/s）
-    //   speed_R1_setup：前右轮的线速度（m/s）
-    //   speed_R2_setup：后右轮的线速度（m/s）
+// 从编码器读取当前各轮子速度，单位mm/s
+// Read the current speed of each wheel from the encoder in mm/s
+void Motion_Get_Speed(car_motion_t* car)
+{
+    float speed_m1 = 0, speed_m2 = 0, speed_m3 = 0, speed_m4 = 0;
+    Motor_Get_Speed(&speed_m1, &speed_m2, &speed_m3, &speed_m4);
 
-    // 计算每个轮子的线速度（单位：m/s）
-	speed_L1_setup = (vx-vy-wz*_MECANUM_ABCL);
-	speed_L2_setup = (vx+vy-wz*_MECANUM_ABCL);
-	speed_R1_setup = -(-vx-vy-wz*_MECANUM_ABCL);
-	speed_R2_setup = -(-vx+vy-wz*_MECANUM_ABCL);
+    float robot_APB = Motion_Get_APB();
+
+    car->Vx = (speed_m1 + speed_m2 + speed_m3 + speed_m4) / 4.0;
+    car->Vy = (-speed_m1 + speed_m2 + speed_m3 - speed_m4) / 4.0;
+    car->Wz = (-speed_m1 - speed_m2 + speed_m3 + speed_m4) / 4.0f / robot_APB;
 }
 
-// 麦轮逆解算函数
-void mecanum_inverse_kinematics(double speed_L1, double speed_L2, double speed_R1, double speed_R2, car_motion_t* car) {
-    // 输入：
-    //   wheel_speeds[4]：四个轮子的线速度（m/s），顺序为[FL, FR, BL, BR]
-    //   L：轮子中心到机器人旋转中心的距离（m，与正解算的L一致）
-    // 输出：
-    //   vx：机体X方向线速度（m/s，向前为正）
-    //   vy：机体Y方向线速度（m/s，向左为正）
-    //   wz：机体角速度（rad/s，逆时针为正）
-
-    // 计算线速度vx（x方向）
-    car->Vx = (speed_L1 + speed_L2 + speed_R1 + speed_R2) / 4.0;
-    
-    // 计算线速度vy（y方向）
-    car->Vy = (speed_L2 + speed_R1 - speed_L1 - speed_R2) / 4.0;
-    
-    // 计算角速度wz（绕z轴）
-    car->Wz = (speed_R2 - speed_L1) / (2.0 * _MECANUM_ABCL);
+// Returns half of the sum of the current cart wheel axles  返回当前小车轮子轴间距和的一半
+float Motion_Get_APB(void)
+{
+    return ROBOT_APB;
 }
 
+// Returns the number of millimeters at which the current wheel has been turned  返回当前小车轮子转一圈多少毫米
+float Motion_Get_Circle_MM(void)
+{
+    return MECANUM_CIRCLE_MM;
+}
+
+float Motion_Get_Circle_M(void)
+{
+    return MECANUM_CIRCLE_M;
+}
 
 // 小车停止 Car stop
 void Motion_Stop(uint8_t brake)
@@ -86,29 +76,32 @@ void Motion_Stop(uint8_t brake)
 // Control car motion
 void Motion_Ctrl(float V_x, float V_y, float V_z)
 {
-    // calculateRPM(V_x, V_y, V_z);
-    mecanum_kinematics(V_x, V_y, V_z, 0.1);
-    line_v = V_x;
-    angular_v = V_z;
+    float robot_APB = Motion_Get_APB();
+    float speed_lr = -V_y;
+    float speed_fb = V_x;
+    float speed_spin = -V_z * robot_APB;
+    if (V_x == 0 && V_y == 0 && V_z == 0)
+    {
+        Motion_Stop(STOP_BRAKE);
+        return;
+    }
 
     // ESP_LOGI("CatMotion", "CtrlSpeedMotor: %.2f, %.2f, %.2f, %.2f", speed_L1_setup, speed_L2_setup, speed_R1_setup, speed_R2_setup);
-    
+    speed_L1_setup = speed_fb + speed_lr + speed_spin;
+    speed_L2_setup = speed_fb - speed_lr + speed_spin;
+    speed_R1_setup = speed_fb - speed_lr - speed_spin;
+    speed_R2_setup = speed_fb + speed_lr - speed_spin;
+
+    if (speed_L1_setup > MECANUM_LIMIT_SPEED) speed_L1_setup = MECANUM_LIMIT_SPEED;
+    if (speed_L1_setup < -MECANUM_LIMIT_SPEED) speed_L1_setup = -MECANUM_LIMIT_SPEED;
+    if (speed_L2_setup > MECANUM_LIMIT_SPEED) speed_L2_setup = MECANUM_LIMIT_SPEED;
+    if (speed_L2_setup < -MECANUM_LIMIT_SPEED) speed_L2_setup = -MECANUM_LIMIT_SPEED;
+    if (speed_R1_setup > MECANUM_LIMIT_SPEED) speed_R1_setup = MECANUM_LIMIT_SPEED;
+    if (speed_R1_setup < -MECANUM_LIMIT_SPEED) speed_R1_setup = -MECANUM_LIMIT_SPEED;
+    if (speed_R2_setup > MECANUM_LIMIT_SPEED) speed_R2_setup = MECANUM_LIMIT_SPEED;
+    if (speed_R2_setup < -MECANUM_LIMIT_SPEED) speed_R2_setup = -MECANUM_LIMIT_SPEED;
     // 此处设置的速度单位为m/s，均为正值时，小车会向前进；即不论左右轮，值为正数时，轮子提供向前的速度
     Motor_Set_Speed(speed_L1_setup, speed_L2_setup, speed_R1_setup, speed_R2_setup);
-}
-
-// 获取小车运动的速度
-// Get the speed of the car's motion
-void Motion_Get_Speed(car_motion_t* car)
-{
-    float speed_m1 = 0, speed_m2 = 0, speed_m3 = 0, speed_m4 = 0;
-    Motor_Get_Speed(&speed_m1, &speed_m2, &speed_m3, &speed_m4);
-
-    // ESP_LOGI("CatMotion", "GetSpeedMotor: %.2f, %.2f, %.2f, %.2f", speed_m1, speed_m2, speed_m3, speed_m4);
-
-    mecanum_inverse_kinematics(speed_m1, speed_m2, speed_m3, speed_m4, car);
-    if(car->Wz == 0) car->Wz = 0;
-    // ESP_LOGI("CatMotion", "GetSpeed: %.2f, %.2f, %.2f", car->Vx, car->Vy, car->Wz);
 }
 
 // 控制小车的运动状态

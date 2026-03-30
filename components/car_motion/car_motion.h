@@ -35,6 +35,27 @@ extern "C" {
 #define FR_WHEELS_DISTANCE 0.125            // 前后轮子之间的距离。如果是2WD/阿克曼转向模型请忽略此参数
 
 
+// 轮子一整圈的位移
+// The displacement of a wheel in one complete turn, Unit: mm 
+#define MECANUM_CIRCLE_MM            (251.33f)
+
+#define MECANUM_CIRCLE_M             (0.2513f)
+// 底盘电机间距之和的一半, 单位是米
+// Half of the sum of the chassis motor spacing
+#define MECANUM_APB                  (0.167f)
+
+#define MECANUM_DIR_X                (1)
+#define MECANUM_DIR_Y                (2)
+#define MECANUM_DIR_Z                (3)
+
+
+#define MECANUM_MAX_SPEED_X          (0.7f)
+#define MECANUM_MAX_SPEED_Y          (0.7f)
+#define MECANUM_MAX_SPEED_Z          (4.2f)
+
+#define MECANUM_LIMIT_SPEED          (MOTOR_MAX_SPEED)
+
+
 typedef enum _motion_state {
     MOTION_STOP = 0,
     MOTION_RUN,
@@ -63,9 +84,11 @@ void Motion_Stop(uint8_t brake);
 void Motion_Ctrl(float V_x, float V_y, float V_z);
 void Motion_Ctrl_State(uint8_t state, float speed);
 void Motion_Get_Speed(car_motion_t* car);
-
-
 void Motion_Init(void);
+
+float Motion_Get_Circle_MM(void);
+float Motion_Get_Circle_M(void);
+float Motion_Get_APB(void);
 
 
 #ifdef __cplusplus
