@@ -28,6 +28,7 @@ static const char *TAG = "CtESP_MAIN";
 #define TYPE_LIDAR          0x01
 #define TYPE_IMU            0x02
 #define TYPE_COMMAND_ACK    0x03  // 新增：对上位机指令的应答
+#define TYPE_CAR_SPEED 0x04 // 新增：小车速度数据类型
 
 // 指令定义 (由上位机发送)
 #define CMD_STOP_LIDAR      0x10
@@ -343,6 +344,36 @@ void imu_task(void *arg) {
     }
 }
 
+// --- Car Speed 发送任务 (50Hz) ---
+void car_speed_task(void *arg) {
+    ESP_LOGI(TAG, "Car Speed Task Started (50Hz)");
+    car_motion_t car_motion;
+    
+    // 用于存储待发送的字节流 (3个float = 12字节)
+    uint8_t data_buffer[12]; 
+    
+    while(1) {
+        // 1. 获取速度数据
+        Motion_Get_Speed(&car_motion);
+        
+        // 2. 将结构体数据拷贝到缓冲区 (注意：这依赖于CPU的大小端模式)
+        // 假设 float 为 4 字节
+        memcpy(data_buffer, &car_motion.Vx, 4);
+        memcpy(data_buffer+4, &car_motion.Vy, 4);
+        memcpy(data_buffer+8, &car_motion.Wz, 4);
+        
+        // 3. 获取时间戳 (ms)
+        uint32_t timestamp_ms = (uint32_t)(esp_timer_get_time() / 1000);
+        
+        // 4. 发送帧
+        // 负载长度 = 3 * 4 bytes = 12 bytes
+        send_frame(TYPE_CAR_SPEED, data_buffer, 12, timestamp_ms); 
+        
+        // 5. 延时以控制频率 (50Hz -> 20ms)
+        vTaskDelay(pdMS_TO_TICKS(20)); 
+    }
+}
+
 // --- 初始同步任务 (可选，启动时发一次) ---
 void sync_task(void *arg) {
     vTaskDelay(pdMS_TO_TICKS(500));
@@ -363,13 +394,27 @@ void app_main(void) {
     ESP_LOGI(TAG, "System Started. Initializing UART0 Bridge...");
     Component_Init();
 
-    // 创建任务
+    // --------------- 创建任务 ----------------------
+    // 创建初始同步任务 (优先级 5)
     xTaskCreate(sync_task, "sync_task", 2048, NULL, 5, NULL);
+    // 创建LiDAR任务 (优先级 5)
     xTaskCreate(lidar_task, "lidar_task", 4096, NULL, 5, NULL);
+    // 创建IMU任务 (优先级 6)
     xTaskCreate(imu_task, "imu_task", 3072, NULL, 6, NULL);
+    // 创建小车速度任务 (优先级 6)
+    xTaskCreate(car_speed_task, "car_speed_task", 2048, NULL, 6, NULL); 
     
-    // 新增：指令接收任务 (优先级稍高，以便及时响应)
+    // 指令接收任务 (优先级稍高，以便及时响应)
     xTaskCreate(command_rx_task, "cmd_rx_task", 4096, NULL, 7, NULL);
 
     ESP_LOGI(TAG, "All tasks created. Waiting for commands...");
 }
+
+// | 数据类型 | 频率 | 负载数据 (Bytes) | 单包总长 (Bytes) | 每秒数据量 (Bytes/s) |
+// | :--- | :--- | :--- | :--- | :--- |
+// | IMU | 100Hz | 24 (6个float) | 12 + 24 = 36 | 36 * 100 = 3600 |
+// | 小车速度 | 50Hz | 12 (3个float) | 12 + 12 = 24 | 24 * 50 = 1200 |
+// | Lidar | 10Hz | 720 (360点 * 2字节) | 12 + 720 = 732 | 732 * 10 = 7320 |
+// | 上位机指令 | 估算 | - | - | 极低 (忽略不计) |
+// | 合计 | - | - | - | 12,120 B/s |
+
