@@ -62,15 +62,31 @@ static void Motor_PID_Ctrl(void)
     static float real_pulse[MOTOR_MAX_NUM] = {0};
     static float new_speed[MOTOR_MAX_NUM] = {0};
 
+    // 第一步：同时读取所有编码器
     for (int i = 0; i < MOTOR_MAX_NUM; i++)
     {
         cur_count[i] = Encoder_Get_Count(ENCODER_ID_M1 + i);
+    }
+    
+    // 第二步：同时计算差值和速度
+    for (int i = 0; i < MOTOR_MAX_NUM; i++)
+    {
         real_pulse[i] = cur_count[i] - last_count[i];
         last_count[i] = cur_count[i];
         read_speed[i] = real_pulse[i] * (MOTOR_WHEEL_CIRCLE/MOTOR_ENCODER_CIRCLE/MOTOR_PID_PERIOD);
-        if (pid_enable)
+    }
+    
+    // 第三步：同时计算PID并输出PWM
+    if (pid_enable)
+    {
+        for (int i = 0; i < MOTOR_MAX_NUM; i++)
         {
             pid_compute(pid_motor[i], pid_target[i] - real_pulse[i], &new_speed[i]);
+        }
+        
+        // 第四步：同时输出所有PWM
+        for (int i = 0; i < MOTOR_MAX_NUM; i++)
+        {
             PwmMotor_Set_Speed(MOTOR_ID_M1 + i, (int)new_speed[i]);
             new_pid_output[i] = new_speed[i];
         }
@@ -124,10 +140,49 @@ static void Motor_Task(void *arg)
 void Motor_Set_Speed(float speed_m1, float speed_m2, float speed_m3, float speed_m4)
 {
     static float speed_m[MOTOR_MAX_NUM] = {0};
+    static float last_speed[MOTOR_MAX_NUM] = {0};
+    static bool motor_was_running = false;
+    
+    // 最小维持速度 (m/s)，用于避免电机完全停止后重新启动的延迟
+    #define MIN_KEEP_SPEED 0.03
+    
     speed_m[0] = Motor_Limit_Speed(speed_m1);
     speed_m[1] = Motor_Limit_Speed(speed_m2);
     speed_m[2] = Motor_Limit_Speed(speed_m3);
     speed_m[3] = Motor_Limit_Speed(speed_m4);
+
+    // 检查是否所有电机都停止
+    bool all_stopped = (fabsf(speed_m[0]) < 0.001f && 
+                        fabsf(speed_m[1]) < 0.001f && 
+                        fabsf(speed_m[2]) < 0.001f && 
+                        fabsf(speed_m[3]) < 0.001f);
+    
+    // 检查之前是否有电机在运行
+    bool any_was_running = (fabsf(last_speed[0]) > 0.001f || 
+                            fabsf(last_speed[1]) > 0.001f || 
+                            fabsf(last_speed[2]) > 0.001f || 
+                            fabsf(last_speed[3]) > 0.001f);
+    
+    // 如果之前有电机在运行，现在需要部分或全部停止
+    if (motor_was_running && !all_stopped) {
+        for (int i = 0; i < MOTOR_MAX_NUM; i++) {
+            // 如果这个电机之前在运行，现在要停止
+            if (fabsf(last_speed[i]) > 0.001f && fabsf(speed_m[i]) < 0.001f) {
+                // 给最小维持速度，保持运转状态
+                speed_m[i] = (last_speed[i] > 0) ? MIN_KEEP_SPEED : -MIN_KEEP_SPEED;
+            }
+        }
+    }
+    
+    // 更新之前的速度状态
+    if (!all_stopped) {
+        motor_was_running = true;
+        for (int i = 0; i < MOTOR_MAX_NUM; i++) {
+            last_speed[i] = speed_m[i];
+        }
+    } else {
+        motor_was_running = false;
+    }
 
     for (int i = 0; i < MOTOR_MAX_NUM; i++)
     {
