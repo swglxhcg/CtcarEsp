@@ -412,6 +412,7 @@ void Component_Init(void){
     Uart1_Init();
     Lidar_Ms200_Init();
     Icm42670p_Init();
+    Motion_Init();
 }
 
 void app_main(void) {
