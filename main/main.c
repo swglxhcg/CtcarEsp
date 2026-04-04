@@ -65,6 +65,7 @@ void send_frame(uint8_t type_id, uint8_t *payload, uint16_t payload_len, uint32_
     else if (type_id == TYPE_LIDAR) header2 = HEADER_LIDAR;
     else if (type_id == TYPE_IMU) header2 = HEADER_IMU;
     else if (type_id == TYPE_COMMAND_ACK) header2 = 0x57; // 自定义应答帧头
+    else if (type_id == TYPE_CAR_SPEED) header2 = 0x58; // 小车速度帧头
     else return; // 未知类型
     
     // 1. 帧头
