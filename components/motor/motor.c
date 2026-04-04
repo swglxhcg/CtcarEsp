@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/semphr.h"
 
 #include "driver/pulse_cnt.h"
 #include "esp_log.h"
@@ -97,9 +98,18 @@ static void Motor_Task(void *arg)
     
     vTaskDelay(pdMS_TO_TICKS(100));
     TickType_t lastWakeTime = xTaskGetTickCount();
-    while (1)
+    while(1)
     {
+        // 等待信号量（阻塞等待，最长10ms）
+        // 如果收到信号量，立即返回并执行PID
+        // 如果超时，也返回并继续执行（确保10ms周期）
+        if (xSpeedUpdateSemaphore != NULL) {
+            xSemaphoreTake(xSpeedUpdateSemaphore, pdMS_TO_TICKS(MOTOR_PID_PERIOD));
+        }
+        
         Motor_PID_Ctrl();
+        
+        // 使用 DelayUntil 确保精确的10ms周期
         vTaskDelayUntil(&lastWakeTime, MOTOR_PID_PERIOD);
     }
 
@@ -125,6 +135,11 @@ void Motor_Set_Speed(float speed_m1, float speed_m2, float speed_m3, float speed
         pid_target[i] = (float)speed_count[i];
     }
     pid_enable = 1;
+    
+    // 给出信号量，唤醒 Motor_Task 立即执行 PID
+    if (xSpeedUpdateSemaphore != NULL) {
+        xSemaphoreGive(xSpeedUpdateSemaphore);
+    }
 }
 
 // 读取当前电机速度值
@@ -175,6 +190,11 @@ void Motor_Init(void)
 {
     Encoder_Init();
     PwmMotor_Init();
+
+    xSpeedUpdateSemaphore = xSemaphoreCreateBinary();
+    if (xSpeedUpdateSemaphore == NULL) {
+        ESP_LOGE(TAG, "Failed to create speed update semaphore");
+    }
 
     xTaskCreatePinnedToCore(Motor_Task, "Motor_Task", 10*1024, NULL, 10, NULL, 1);
 }

@@ -7,6 +7,8 @@ extern "C" {
 #include "stdbool.h"
 #include "stdint.h"
 #include "pwm_motor.h"
+#include "freertos/FreeRTOS.h"
+#include "semphr.h"
 
 // 电机数量
 #define MOTOR_MAX_NUM                   (4)
@@ -28,6 +30,8 @@ void Motor_Stop(bool brake);
 
 void Motor_Update_PID_Parm(float pid_p, float pid_i, float pid_d);
 void Motor_Read_PID_Parm(float* out_p, float* out_i, float* out_d);
+
+SemaphoreHandle_t xSpeedUpdateSemaphore;
 
 
 #ifdef __cplusplus
