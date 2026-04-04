@@ -11,6 +11,9 @@
 #include "uart1.h"
 #include "lidar_ms200.h"
 #include "icm42670p.h"
+#include "motion_ctrl.h"
+
+
 
 static const char *TAG = "CtESP_MAIN";
 
@@ -36,6 +39,7 @@ static const char *TAG = "CtESP_MAIN";
 #define CMD_STOP_IMU        0x20
 #define CMD_START_IMU       0x21
 #define CMD_REQ_SYNC        0x30
+#define CMD_SET_TARGET_SPEED 0x40
 
 #define FOOTER_1            0x0D
 #define FOOTER_2            0x0A
@@ -43,6 +47,11 @@ static const char *TAG = "CtESP_MAIN";
 // --- 全局状态标志 ---
 static volatile bool g_lidar_enabled = true;
 static volatile bool g_imu_enabled = true;
+
+// --- 目标速度存储 ---
+static volatile float g_target_vx = 0.0f;
+static volatile float g_target_vy = 0.0f;
+static volatile float g_target_wz = 0.0f;
 
 // --- 通用发送函数 (使用 Uart0_Send_Data) ---
 void send_frame(uint8_t type_id, uint8_t *payload, uint16_t payload_len, uint32_t timestamp_ms) {
@@ -273,6 +282,20 @@ void command_rx_task(void *arg) {
                                 case CMD_REQ_SYNC:
                                     ESP_LOGI(TAG, "Sync Requested by Host");
                                     send_frame(TYPE_SYNC, NULL, 0, ts);
+                                    break;
+                                    
+                                case CMD_SET_TARGET_SPEED:
+                                    if (payload_len >= 12) {
+                                        memcpy(&g_target_vx, &rx_buf[0], 4);
+                                        memcpy(&g_target_vy, &rx_buf[4], 4);
+                                        memcpy(&g_target_wz, &rx_buf[8], 4);
+                                        Motion_Ctrl(g_target_vx, g_target_vy, g_target_wz);
+                                        ESP_LOGI(TAG, "Target Speed Set: Vx=%.3f, Vy=%.3f, Wz=%.3f", 
+                                                 g_target_vx, g_target_vy, g_target_wz);
+                                        send_frame(TYPE_COMMAND_ACK, ack_payload, 2, ts);
+                                    } else {
+                                        ESP_LOGW(TAG, "Set Target Speed: Invalid payload length %d", payload_len);
+                                    }
                                     break;
 
                                 default:
