@@ -20,6 +20,8 @@
 
 static const char *TAG = "MOTOR";
 
+SemaphoreHandle_t xSpeedUpdateSemaphore;
+
 
 // 10毫秒目标脉冲数
 // 10 ms target pulse number
