@@ -8,7 +8,7 @@ extern "C" {
 #include "stdint.h"
 #include "pwm_motor.h"
 #include "freertos/FreeRTOS.h"
-#include "semphr.h"
+#include "freertos/semphr.h"
 
 // 电机数量
 #define MOTOR_MAX_NUM                   (4)
